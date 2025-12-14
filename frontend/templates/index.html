@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IDS Dashboard</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-hover: #334155;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --border: #475569;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .header-left h1 {
+            font-size: 24px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+        
+        .header-subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        
+        .header-status {
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 20px;
+            color: var(--success);
+        }
+        
+        .header-status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+        
+        .header-right {
+            text-align: right;
+        }
+        
+        .header-clock {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 24px;
+            font-weight: 300;
+            color: var(--text);
+            margin-bottom: 4px;
+            letter-spacing: 1px;
+        }
+        
+        .header-date {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text);
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            background: var(--bg-hover);
+        }
+        
+        .btn-danger {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+        
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .time-filter-btn {
+            padding: 4px 10px;
+            font-size: 12px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .time-filter-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        /* Alerts Panel */
+        .alerts-panel {
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .alerts-list {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .alert-item {
+            padding: 12px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border-left: 3px solid var(--primary);
+            position: relative;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .alert-item.syn { border-left-color: #3b82f6; }
+        .alert-item.fin { border-left-color: #10b981; }
+        .alert-item.null { border-left-color: #8b5cf6; }
+        .alert-item.xmas { border-left-color: #f59e0b; }
+        .alert-item.udp { border-left-color: #ec4899; }
+        .alert-item.arp { border-left-color: #ef4444; }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .alert-time {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+        
+        .alert-type {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .alert-message {
+            font-size: 14px;
+            margin-bottom: 6px;
+            line-height: 1.4;
+        }
+        
+        .alert-ip {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        
+        .alert-count {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: var(--danger);
+            color: white;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: bold;
+            min-width: 18px;
+            text-align: center;
+        }
+        
+        /* Stats Panel */
+        .stats-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid var(--border);
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            margin: 5px 0;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Blacklist Panel */
+        .blacklist-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .blacklist-ip {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .blacklist-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-dark);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+        
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        /* Hide the small stats clock; removed per request */
+        #lastUpdate { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>
+                    <span>🛡️ IDS Monitor</span>
+                    <span class="header-status" id="connectionStatus">Connected</span>
+                </h1>
+                <div class="header-subtitle">Real-time intrusion detection system</div>
+            </div>
+            <div class="header-right">
+                <div class="header-clock" id="liveClock">--:--:--</div>
+                <div class="header-date" id="liveDate">-- --- ----</div>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <div class="card alerts-panel">
+                <div class="card-header">
+                    <div class="card-title">Recent Alerts</div>
+                    <div class="btn-group">
+                        <button class="btn btn-danger" onclick="clearAlerts()">Clear All</button>
+                    </div>
+                </div>
+                
+                <div class="filter-buttons">
+                    <button class="time-filter-btn active" onclick="filterAlerts(1)">Last Hour</button>
+                    <button class="time-filter-btn" onclick="filterAlerts(24)">Last 24h</button>
+                    <button class="time-filter-btn" onclick="filterAlerts(null)">All Time</button>
+                </div>
+                
+                <div class="alerts-list" id="alertsList">
+                    <div class="empty-state" id="emptyAlerts">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                        <p>No alerts detected yet</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stats-panel">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Statistics</div>
+                        <span class="btn" id="lastUpdate">--:--:--</span>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Alerts</div>
+                            <div class="stat-value" id="totalAlerts">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Last Hour</div>
+                            <div class="stat-value" id="recent1h">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Last 24h</div>
+                            <div class="stat-value" id="recent24h">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Active IPs</div>
+                            <div class="stat-value" id="activeIPs">0</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Blacklisted IPs</div>
+                        <div class="stat-value" style="font-size: 18px;" id="blacklistCount">0</div>
+                    </div>
+                    <div class="blacklist-list" id="blacklistList">
+                        <div class="empty-state" id="emptyBlacklist">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                            <p>No blacklisted IPs</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+
+const socket = io();
+let currentFilter = 1; // Default: last hour
+let allAlerts = []; // Store raw alerts for history (kept but not spammy UI)
+
+// Aggregated scans storage
+// `scansMap` maps a unique scan id -> scan object
+const scansMap = new Map();
+const scanTimers = {}; // inactivity timers per scan id
+const INACTIVITY_MS = 5000; // consider scan ended after 5s without new packets
+const scanElements = new Map(); // DOM elements keyed by scan id
+const scanCounters = {}; // counters to generate unique scan ids per base key
+
+function makeScanId(baseKey) {
+    scanCounters[baseKey] = (scanCounters[baseKey] || 0) + 1;
+    return `${baseKey}|${scanCounters[baseKey]}`;
+}
+
+function findActiveScanId(baseKey) {
+    for (const [id, s] of scansMap.entries()) {
+        if (s.baseKey === baseKey && s.ongoing) return id;
+    }
+    return null;
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    updateLiveClock();
+    setInterval(updateLiveClock, 1000);
+    
+    // Load alerts first so stats can be computed from the latest alert history,
+    // then load blacklist and stats.
+    loadAlerts().then(() => {
+        loadBlacklist();
+        loadStats();
+    }).catch(() => {
+        // still attempt to load other pieces on failure
+        loadBlacklist();
+        loadStats();
+    });
+    // Update live durations every second for ongoing scans (incremental)
+    setInterval(() => {
+        let hasOngoing = false;
+        for (const v of scansMap.values()) { if (v.ongoing) { hasOngoing = true; break; } }
+        if (hasOngoing) updateOngoingDurations();
+    }, 1000);
+});
+
+// Live clock update
+function updateLiveClock() {
+    const now = new Date();
+    document.getElementById('liveClock').textContent = 
+        now.toLocaleTimeString('en-US', {hour12: false});
+    document.getElementById('liveDate').textContent = 
+        now.toLocaleDateString('en-US', {weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'});
+}
+
+// WebSocket Events
+socket.on('connect', () => {
+    console.log('✅ Connected to IDS server via WebSocket');
+    document.getElementById('connectionStatus').textContent = 'Connected (Live)';
+    document.getElementById('connectionStatus').style.color = '#10b981';
+    
+    // Load initial data and ensure alerts are loaded first so client-side
+    // stats are computed from the latest history.
+    loadAlerts().then(() => {
+        loadBlacklist();
+        loadStats();
+    }).catch(() => {
+        // If alerts fail to load, still try to load other pieces
+        loadBlacklist();
+        loadStats();
+    });
+});
+
+socket.on('disconnect', () => {
+    console.log('❌ Disconnected from IDS server');
+    document.getElementById('connectionStatus').textContent = 'Disconnected';
+    document.getElementById('connectionStatus').style.color = '#ef4444';
+});
+
+socket.on('connect_error', (error) => {
+    console.error('WebSocket connection error:', error);
+});
+
+socket.on('new_alert', (alert) => {
+    console.log('📢 New alert received:', alert);
+    handleNewAlert(alert);
+});
+
+// Listen for blacklist changes from server
+socket.on('blacklist_update', (data) => {
+    if (data && data.blacklist) updateBlacklistUI(data.blacklist);
+});
+
+socket.on('stats_update', (stats) => {
+    console.log('📊 Stats update received:', stats);
+    updateStats(stats);
+});
+
+// Alert handling
+function handleNewAlert(alert) {
+    // Keep raw alerts for history (append newest to the end)
+    // We no longer cap alerts on the client; the server controls storage.
+    allAlerts.push(alert);
+
+    // Aggregate into scans using base key and separate scan instances
+    const baseKey = `${alert.src_ip || 'unknown'}|${alert.type || 'UNKNOWN'}`;
+    const now = parseTimestamp(alert.timestamp) || new Date();
+
+    // Try to find an active scan for this baseKey
+    let scanId = findActiveScanId(baseKey);
+    if (!scanId) {
+        // no active scan, create a new one
+        scanId = makeScanId(baseKey);
+        const scan = {
+            id: scanId,
+            baseKey: baseKey,
+            src_ip: alert.src_ip || 'Unknown',
+            type: alert.type || 'UNKNOWN',
+            message: alert.message || '',
+            start: now,
+            last: now,
+            count: 1,
+            ongoing: true
+        };
+        scansMap.set(scanId, scan);
+    } else {
+        const scan = scansMap.get(scanId);
+        scan.last = now;
+        scan.count = (scan.count || 0) + 1;
+        scan.ongoing = true;
+        scan.message = alert.message || scan.message;
+    }
+
+    // Reset inactivity timer for this scan id; when it fires mark scan completed
+    if (scanTimers[scanId]) clearTimeout(scanTimers[scanId]);
+    scanTimers[scanId] = setTimeout(() => {
+        const s = scansMap.get(scanId);
+        if (s) {
+            s.ongoing = false;
+            // keep 'last' as the final packet time
+            updateScanDOM(scanId);
+        }
+        delete scanTimers[scanId];
+    }, INACTIVITY_MS);
+
+    // Update DOM incrementally for this scan
+    updateScanDOM(scanId);
+
+    // Show a lightweight notification (optional)
+    showAlertNotification({
+        type: alert.type,
+        timestamp: alert.timestamp,
+        message: `${alert.type || 'ALERT'} scan ${alert.src_ip || ''}`,
+        src_ip: alert.src_ip
+    });
+}
+
+// Load alerts
+async function loadAlerts() {
+    try {
+        // If you want all alerts, call without a limit param so the server
+        // returns the full stored history. Previously this reversed the
+        // array and caused aggregation to compute incorrect start times.
+        const response = await fetch('/api/alerts');
+        const data = await response.json();
+        // Server returns alerts oldest -> newest; keep that order for
+        // correct aggregation (start = earliest, last = latest)
+        allAlerts = data.alerts || [];
+
+        // Build one historical scan per baseKey and assign unique ids
+        scansMap.clear();
+        scanElements.clear();
+        // Group historical alerts by baseKey to create one completed scan per source/type
+        const grouped = {};
+        for (const a of allAlerts) {
+            const baseKey = `${a.src_ip || 'unknown'}|${a.type || 'UNKNOWN'}`;
+            const t = parseTimestamp(a.timestamp) || new Date();
+            if (!grouped[baseKey]) {
+                const scanId = makeScanId(baseKey);
+                grouped[baseKey] = scanId;
+                scansMap.set(scanId, { id: scanId, baseKey: baseKey, src_ip: a.src_ip, type: a.type, message: a.message, start: t, last: t, count: 1, ongoing: false });
+            } else {
+                const sid = grouped[baseKey];
+                const s = scansMap.get(sid);
+                if (s) {
+                    s.last = t > s.last ? t : s.last;
+                    s.count = (s.count || 0) + 1;
+                }
+            }
+        }
+
+        // mark aggregated scans as ongoing if recent and set timers
+        const now = new Date();
+        for (const [id, s] of scansMap.entries()) {
+            const inactiveMs = now - s.last;
+            s.ongoing = inactiveMs < INACTIVITY_MS;
+            if (s.ongoing) {
+                // schedule a timer to mark the scan completed after the remaining inactivity window
+                const remaining = INACTIVITY_MS - inactiveMs;
+                if (scanTimers[id]) clearTimeout(scanTimers[id]);
+                if (remaining > 0) {
+                    scanTimers[id] = setTimeout(() => {
+                        const ss = scansMap.get(id);
+                        if (ss) {
+                            ss.ongoing = false;
+                            updateScanDOM(id);
+                        }
+                        delete scanTimers[id];
+                    }, remaining);
+                } else {
+                    // if remaining <= 0, mark as completed immediately
+                    s.ongoing = false;
+                }
+            }
+        }
+
+        renderScansUI();
+    } catch (error) {
+        console.error('Failed to load alerts:', error);
+    }
+}
+
+// Apply current time filter
+function applyAlertFilter() {
+    // Deprecated: the UI now shows aggregated scans. Re-render scans with currentFilter.
+    renderScansUI();
+}
+
+function filterAlerts(hours) {
+    currentFilter = hours;
+    // Render scans with the selected time filter
+    renderScansUI();
+    
+    // Update filter buttons
+    document.querySelectorAll('.time-filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    let selector = '';
+    if (hours === 1) selector = '[onclick="filterAlerts(1)"]';
+    else if (hours === 24) selector = '[onclick="filterAlerts(24)"]';
+    else selector = '[onclick="filterAlerts(null)"]';
+    
+    const btn = document.querySelector(selector);
+    if (btn) btn.classList.add('active');
+}
+
+async function loadBlacklist() {
+    try {
+        const response = await fetch('/api/blacklist');
+        const data = await response.json();
+        updateBlacklistUI(data.blacklist);
+    } catch (error) {
+        console.error('Failed to load blacklist:', error);
+    }
+}
+
+async function loadStats() {
+    try {
+        const response = await fetch('/api/stats');
+        const data = await response.json();
+        updateStats(data);
+    } catch (error) {
+        console.error('Failed to load stats:', error);
+    }
+}
+
+// Update UI functions
+// Render aggregated scans into the Recent Alerts panel
+function renderScansUI() {
+    const container = document.getElementById('alertsList');
+    // Build filtered and sorted display list according to currentFilter
+    const scans = Array.from(scansMap.values()).sort((a, b) => b.last - a.last);
+    let display = scans;
+    if (currentFilter !== null) {
+        const now = new Date();
+        display = scans.filter(s => ((now - s.start) / (1000*60*60)) <= currentFilter);
+    }
+    // No hard cap on displayed scans here; let the filter control content.
+    // (If you want pagination, we can add it later.)
+
+    // Clear container first to remove any stale empty-state or elements
+    container.innerHTML = '';
+
+    if (display.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.id = 'emptyAlerts';
+        empty.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <p>No alerts detected yet</p>
+        `;
+        container.appendChild(empty);
+        scanElements.clear();
+        return;
+    }
+
+    // Append or update elements
+    const keepIds = new Set();
+    for (const s of display) {
+        keepIds.add(s.id);
+        if (scanElements.has(s.id)) {
+            updateScanElement(s.id, s);
+            container.appendChild(scanElements.get(s.id));
+        } else {
+            const el = createScanElement(s);
+            el.dataset.scanId = s.id;
+            container.appendChild(el);
+            scanElements.set(s.id, el);
+        }
+    }
+
+    // Remove any elements that are not in this display (scanElements keys may include others)
+    for (const [id, el] of Array.from(scanElements.entries())) {
+        if (!keepIds.has(id)) {
+            if (el.parentNode) el.parentNode.removeChild(el);
+            scanElements.delete(id);
+        }
+    }
+}
+
+function createScanElement(scan) {
+    const div = document.createElement('div');
+    div.className = `alert-item ${scan.type ? scan.type.toLowerCase() : 'unknown'}`;
+    div.innerHTML = `
+        <div class="alert-header">
+            <div class="alert-time">${formatTimestamp(scan.start)}</div>
+            <div class="alert-type">${scan.type || 'UNKNOWN'}</div>
+        </div>
+        <div class="alert-message">${scan.message || ''}</div>
+        <div class="alert-ip">${scan.src_ip || 'Unknown IP'} - <strong>${scan.count || 1} packets</strong>${scan.ongoing ? ' (Ongoing)' : ' ('+formatDuration(scan.last - scan.start)+')'}</div>
+    `;
+    return div;
+}
+
+function updateScanElement(id, scan) {
+    const el = scanElements.get(id);
+    if (!el) return;
+    const timeEl = el.querySelector('.alert-time');
+    const typeEl = el.querySelector('.alert-type');
+    const msgEl = el.querySelector('.alert-message');
+    const ipEl = el.querySelector('.alert-ip');
+    if (timeEl) timeEl.textContent = formatTimestamp(scan.start);
+    if (typeEl) typeEl.textContent = scan.type || 'UNKNOWN';
+    if (msgEl) msgEl.textContent = scan.message || '';
+    if (ipEl) ipEl.innerHTML = `${scan.src_ip || 'Unknown IP'} - <strong>${scan.count || 1} packets</strong>${scan.ongoing ? ' (Ongoing)' : ' ('+formatDuration(scan.last - scan.start)+')'}`;
+}
+
+function updateScanDOM(id) {
+    const scan = scansMap.get(id);
+    if (!scan) return;
+    if (scanElements.has(id)) {
+        updateScanElement(id, scan);
+    } else {
+        const el = createScanElement(scan);
+        el.dataset.scanId = id;
+        const container = document.getElementById('alertsList');
+        container.insertBefore(el, container.firstChild);
+        scanElements.set(id, el);
+    }
+}
+
+function updateOngoingDurations() {
+    for (const [id, scan] of scansMap.entries()) {
+        if (scan.ongoing && scanElements.has(id)) {
+            updateScanElement(id, scan);
+        }
+    }
+}
+
+function formatDuration(ms) {
+    if (!ms || ms < 0) return '0s';
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+}
+
+function formatTimestamp(d) {
+    if (!(d instanceof Date)) d = new Date(d);
+    return d.toLocaleString();
+}
+
+function parseTimestamp(s) {
+    // Expecting 'YYYY-MM-DD HH:MM:SS'
+    try {
+        const parts = s.split(' ');
+        if (parts.length < 2) return new Date(s);
+        const dateParts = parts[0].split('-').map(Number);
+        const timeParts = parts[1].split(':').map(Number);
+        return new Date(dateParts[0], (dateParts[1]||1)-1, dateParts[2]||1, timeParts[0]||0, timeParts[1]||0, timeParts[2]||0);
+    } catch (e) { return new Date(s); }
+}
+
+function createAlertElement(alert) {
+    const div = document.createElement('div');
+    div.className = `alert-item ${alert.type ? alert.type.toLowerCase() : 'unknown'}`;
+    
+    div.innerHTML = `
+        <div class="alert-header">
+            <div class="alert-time">${alert.timestamp}</div>
+            <div class="alert-type">${alert.type || 'UNKNOWN'}</div>
+        </div>
+        <div class="alert-message">${alert.message || 'No message'}</div>
+        <div class="alert-ip">${alert.src_ip || 'Unknown IP'}</div>
+    `;
+    
+    return div;
+}
+
+// Show notification for new alert
+function showAlertNotification(alert) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #1e293b;
+        border-left: 4px solid #3b82f6;
+        padding: 12px 15px;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        z-index: 10000;
+        width: 300px;
+        animation: slideInRight 0.3s ease;
+        color: white;
+    `;
+    
+    notification.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <strong style="color: #3b82f6;">${alert.type || 'ALERT'}</strong>
+            <small style="color: #94a3b8;">${alert.timestamp.split(' ')[1] || ''}</small>
+        </div>
+        <div style="font-size: 14px; margin-bottom: 3px;">${alert.message || ''}</div>
+        <div style="font-family: monospace; font-size: 12px; color: #94a3b8;">${alert.src_ip || ''}</div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                document.body.removeChild(notification);
+            }
+        }, 300);
+    }, 5000);
+}
+
+// Add CSS animations
+if (!document.getElementById('alert-animations')) {
+    const style = document.createElement('style');
+    style.id = 'alert-animations';
+    style.textContent = `
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function updateBlacklistUI(blacklist) {
+    const container = document.getElementById('blacklistList');
+    const countElement = document.getElementById('blacklistCount');
+    countElement.textContent = blacklist.length;
+
+    // Rebuild the blacklist DOM each update so we don't depend on an
+    // existing empty-state node that might have been removed previously.
+    container.innerHTML = '';
+
+    if (!blacklist || blacklist.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.id = 'emptyBlacklist';
+        empty.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+            <p>No blacklisted IPs</p>
+        `;
+        container.appendChild(empty);
+        return;
+    }
+
+    blacklist.forEach(ip => {
+        const item = document.createElement('div');
+        item.className = 'blacklist-item';
+        item.innerHTML = `
+            <span class="blacklist-ip">${ip}</span>
+            <button class="btn btn-danger" onclick="removeFromBlacklist('${ip}')">Remove</button>
+        `;
+        container.appendChild(item);
+    });
+}
+
+function updateStats(stats) {
+    // Check if stats object has expected properties
+    if (stats) {
+        // total alerts (server may send under different keys depending on REST vs websocket)
+        const total = stats.total_alerts ?? stats.totalAlerts ?? allAlerts.length ?? 0;
+        document.getElementById('totalAlerts').textContent = total;
+
+        // For consistency, compute Last Hour and Last 24h from the local alert history.
+        // This avoids mismatches if the server sends different shaped stats.
+        const now = new Date();
+        const lastHourCount = allAlerts.filter(a => {
+            try { return (now - new Date(a.timestamp)) < 1000*60*60; } catch(e){ return false; }
+        }).length;
+        document.getElementById('recent1h').textContent = lastHourCount;
+
+        const last24Count = allAlerts.filter(a => {
+            try { return (now - new Date(a.timestamp)) < 1000*60*60*24; } catch(e){ return false; }
+        }).length;
+        document.getElementById('recent24h').textContent = last24Count;
+
+        // Debug: log incoming stats payload when received (helpful if server values differ)
+        if (window.console && window.console.debug) console.debug('stats payload:', stats);
+
+        // unique IPs: prefer server otherwise compute
+        const unique = stats.unique_ips ?? stats.uniqueIps ?? (new Set(allAlerts.map(a => a.src_ip)).size);
+        document.getElementById('activeIPs').textContent = unique ?? 0;
+
+        // Update blacklist count if available
+        if (stats.blacklist_count !== undefined) {
+            document.getElementById('blacklistCount').textContent = stats.blacklist_count;
+        }
+    }
+}
+
+// Action functions
+async function clearAlerts() {
+    if (confirm('Clear all alerts? This cannot be undone.')) {
+        try {
+            await fetch('/api/alerts/clear', { method: 'POST' });
+            allAlerts = [];
+            // Clear aggregated scans, timers and UI
+            for (const id in scanTimers) { try { clearTimeout(scanTimers[id]); } catch(e){} }
+            Object.keys(scanTimers).forEach(k => delete scanTimers[k]);
+            scansMap.clear();
+            for (const el of scanElements.values()) {
+                if (el.parentNode) el.parentNode.removeChild(el);
+            }
+            scanElements.clear();
+            renderScansUI();
+            loadStats(); // Reload stats
+        } catch (error) {
+            console.error('Failed to clear alerts:', error);
+        }
+    }
+}
+
+async function removeFromBlacklist(ip) {
+    if (confirm(`Remove ${ip} from blacklist?`)) {
+        try {
+            const response = await fetch(`/api/blacklist?ip=${encodeURIComponent(ip)}`, { 
+                method: 'DELETE' 
+            });
+            if (response.ok) {
+                // reload blacklist from server
+                loadBlacklist();
+                // also remove the IP from DOM immediately if present
+                const container = document.getElementById('blacklistList');
+                const items = Array.from(container.querySelectorAll('.blacklist-item'));
+                for (const it of items) {
+                    const ipEl = it.querySelector('.blacklist-ip');
+                    if (ipEl && ipEl.textContent.trim() === ip) {
+                        if (it.parentNode) it.parentNode.removeChild(it);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Failed to remove from blacklist:', error);
+        }
+    }
+}
+
+// Auto-refresh stats every 10 seconds
+setInterval(loadStats, 10000);
+
+// Connection heartbeat
+setInterval(() => {
+    if (socket.connected) {
+        socket.emit('ping');
+    } else {
+        console.log('Attempting to reconnect WebSocket...');
+        socket.connect();
+    }
+}, 15000);
+
+
+
+    </script>
+</body>
+</html>
