@@ -1,4 +1,5 @@
 # IDS
+<img width="1848" height="1011" alt="image" src="https://github.com/user-attachments/assets/e6628cff-7db0-4b0e-a5ec-48bcdcfda05b" />
 
 This project is a lightweight intrusion detection system built in Python. It captures network traffic, detects common scan and spoofing patterns, logs alerts, and exposes them through a local dashboard.
 
