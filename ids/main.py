@@ -26,8 +26,9 @@ class IDS:
         ]
 
     def packet_handler(self, pkt):
-        ip = pkt[IP].src if IP in pkt else None
 
+        ip = pkt[IP].src if IP in pkt else None
+        print(pkt.summary())
         # process packet through all detectors
         for det in self.detectors:
             det.process_packet(pkt)

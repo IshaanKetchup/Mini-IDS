@@ -64,7 +64,8 @@ if __name__ == '__main__':
     # Start the enhanced IDS
     try:
         ids = EnhancedIDS()
-        ids.run(interface="\\Device\\NPF_{2C8A903D-15B6-49B6-86D8-6992D5571166}")
+        #ids.run(interface="\\Device\\NPF_{2C8A903D-15B6-49B6-86D8-6992D5571166}")
+        ids.run(interface="\\Device\\NPF_{AB7CC625-27EC-4F9B-B653-4FA111723C10}")
     except KeyboardInterrupt:
         print("\nShutting down...")
     except Exception as e:

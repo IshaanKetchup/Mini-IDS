@@ -1,6 +1,6 @@
 # null_detector.py
 from scapy.layers.inet import TCP, IP
-from datetime import datetime
+from logger import report_alert
 
 class NullScanDetector:
     def __init__(self, blacklist, threshold=10):
@@ -11,7 +11,8 @@ class NullScanDetector:
     def process_packet(self, pkt):
         if not pkt.haslayer(TCP):
             return
-
+        if not pkt.haslayer(IP):
+            return
         ip = pkt[IP]
         tcp = pkt[TCP]
 
@@ -21,5 +22,12 @@ class NullScanDetector:
 
             if self.null_counts[src] >= self.threshold:
                 self.blacklist.add(ip.src)
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                print(f"[{timestamp}] [ALERT] NULL scan detected from {src}")
+                message = f"NULL scan detected from {src}"
+                report_alert(
+                    event_type="NULL",
+                    src_ip=src,
+                    message=message,
+                    severity="high",
+                    detection_reason="Repeated TCP packets with no flags set",
+                    metadata={"threshold": self.threshold, "count": self.null_counts[src]}
+                )

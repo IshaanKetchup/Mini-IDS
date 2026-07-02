@@ -1,6 +1,6 @@
 # xmas_detector.py
 from scapy.layers.inet import TCP, IP
-from datetime import datetime
+from logger import report_alert
 
 class XmasScanDetector:
     def __init__(self, blacklist, threshold=10):
@@ -11,7 +11,10 @@ class XmasScanDetector:
     def process_packet(self, pkt):
         if not pkt.haslayer(TCP):
             return
-
+        if not pkt.haslayer(IP):
+            return
+        if not pkt.haslayer(TCP):
+            return
         ip = pkt[IP]
         tcp = pkt[TCP]
 
@@ -21,5 +24,12 @@ class XmasScanDetector:
 
             if self.xmas_counts[src] >= self.threshold:
                 self.blacklist.add(ip.src)
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                print(f"[{timestamp}] [ALERT]] XMAS scan detected from {src}")
+                message = f"XMAS scan detected from {src}"
+                report_alert(
+                    event_type="XMAS",
+                    src_ip=src,
+                    message=message,
+                    severity="high",
+                    detection_reason="Repeated TCP packets with FIN+PSH+URG flags",
+                    metadata={"threshold": self.threshold, "count": self.xmas_counts[src]}
+                )

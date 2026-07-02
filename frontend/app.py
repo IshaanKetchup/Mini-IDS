@@ -16,16 +16,31 @@ class AlertStore:
         self.max_alerts = max_alerts
         self.lock = threading.Lock()
     
-    def add_alert(self, alert_type, src_ip, message):
+    def add_alert(self, alert_type, src_ip=None, message=None, severity=None, metadata=None):
         with self.lock:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            alert = {
-                'timestamp': timestamp,
-                'type': alert_type,
-                'src_ip': src_ip,
-                'message': message,
-                'id': len(self.alerts)
-            }
+            if isinstance(alert_type, dict):
+                payload = dict(alert_type)
+                timestamp = payload.get('timestamp', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                alert = {
+                    'timestamp': timestamp,
+                    'type': payload.get('event_type') or payload.get('attack_type') or payload.get('type', 'ALERT'),
+                    'src_ip': payload.get('src_ip') or payload.get('source_ip', 'unknown'),
+                    'message': payload.get('message', ''),
+                    'severity': payload.get('severity', 'medium'),
+                    'metadata': payload.get('metadata', {}),
+                    'id': len(self.alerts)
+                }
+            else:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                alert = {
+                    'timestamp': timestamp,
+                    'type': alert_type,
+                    'src_ip': src_ip or 'unknown',
+                    'message': message or '',
+                    'severity': severity or 'medium',
+                    'metadata': metadata or {},
+                    'id': len(self.alerts)
+                }
             self.alerts.append(alert)
             
             # Keep only recent alerts if a cap is configured
@@ -34,7 +49,7 @@ class AlertStore:
             
             # Emit via WebSocket
             socketio.emit('new_alert', alert)
-            print(f"[{timestamp}] {message}")
+            print(f"[{alert['timestamp']}] {alert['message']}")
     
     def get_alerts(self, limit=None):
         with self.lock:
